@@ -49,26 +49,30 @@
 //-------------------------------------------------------------------------
 
 #define PACK_PAIR(key, value) \
-    pairs.write(key, value)
+    o.add(key, value)
 
 namespace
 {
 
 template<typename Writer>
-struct PairWriter
+class ObjectWriter
 {
-    PairWriter(Writer& w) : writer { w } { }
-    Writer& writer;
+public:
+    ObjectWriter(Writer& w) : writer { w } { writer.StartObject(); }
+    ~ObjectWriter() { writer.EndObject(); }
 
     template<typename T>
-    void write(const char* key, T val) { writer.Key(key); write(val); }
+    void add(const char* key, T val) { writer.Key(key); write(val); }
 
+private:
     template<typename T>
     void write(T val) { writer.Uint(val); }
 
     void write(const char* val) { writer.String(val ? val : ""); }
     void write(char* val) { writer.String(val ? val : ""); }
     void write(bool val) { writer.Bool(val); }
+
+    Writer& writer;
 };
 
 template<typename Writer>
@@ -76,28 +80,28 @@ inline void pack_event(std::ostream& os, const Event& e)
 {
     rapidjson::StringBuffer buffer;
     Writer writer(buffer);
-    writer.StartObject();
 
-    PairWriter<Writer> pairs(writer);
-
-    PACK_PAIR("event_id", e.event_id);
-    PACK_PAIR("event_reference", e.event_reference);
-    PACK_PAIR("ref_time", e.ref_time.tv_sec);
-    PACK_PAIR("alt_msg", e.alt_msg);
-
-    if ( e.sig_info )
     {
-        const auto& si = *e.sig_info;
-        PACK_PAIR("gid", si.generator);
-        PACK_PAIR("sid", si.id);
-        PACK_PAIR("rev", si.rev);
-        PACK_PAIR("classification", si.class_id);
-        PACK_PAIR("priority", si.priority);
-        PACK_PAIR("message", si.message);
-        PACK_PAIR("text_rule", si.text_rule);
-    }
+        ObjectWriter<Writer> o(writer);
 
-    writer.EndObject();
+        PACK_PAIR("event_id", e.event_id);
+        PACK_PAIR("event_reference", e.event_reference);
+        PACK_PAIR("ref_time", e.ref_time.tv_sec);
+        PACK_PAIR("alt_msg", e.alt_msg);
+
+        if ( e.sig_info )
+        {
+            const auto& si = *e.sig_info;
+
+            PACK_PAIR("gid", si.generator);
+            PACK_PAIR("sid", si.id);
+            PACK_PAIR("rev", si.rev);
+            PACK_PAIR("classification", si.class_id);
+            PACK_PAIR("priority", si.priority);
+            PACK_PAIR("message", si.message);
+            PACK_PAIR("text_rule", si.text_rule);
+        }
+    }
 
     os << buffer.GetString() << '\n';
 }
